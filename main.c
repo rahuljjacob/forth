@@ -20,7 +20,7 @@ typedef struct {
   int type;
   union {
     void (*function)(STACK *);
-    char *definition;
+    char definition[100];
   } executable;
 } Word;
 
@@ -29,6 +29,9 @@ Word dictionary[DICTIONARY_SIZE];
 int dictSize = 0;
 int wordMode = 0;
 int stringMode = 0;
+int wordName = 0;
+
+char *wordToken;
 
 int isWord(char *token);
 int isNumber(char *token);
@@ -52,6 +55,7 @@ void over(STACK *l);
 void rot(STACK *l);
 void cr(STACK *l);
 void emit(STACK *l);
+void quit(STACK *l);
 
 void printString(char *str);
 void execWord(char *token);
@@ -83,6 +87,7 @@ void addPredefinedWord(char *name, void (*function)(STACK *)) {
   if (dictSize < DICTIONARY_SIZE) {
     strcpy(dictionary[dictSize].name, name);
     dictionary[dictSize].executable.function = function;
+    dictionary[dictSize].type = 0;
     dictSize++;
   } else {
     printf("Dictionary Full");
@@ -99,18 +104,63 @@ void initDictionary() {
   addPredefinedWord("rot", rot);
   addPredefinedWord("cr", cr);
   addPredefinedWord("emit", emit);
+  addPredefinedWord("quit", quit);
 }
 
 void execWord(char *token) {
+  if (strcmp(token, ":") == 0) {
+    wordMode = 1;
+    return;
+  }
+  if (wordMode == 1) {
+    if (wordName == 0) {
+      strcpy(dictionary[dictSize].name, token);
+      dictionary[dictSize].type = 1;
+      wordName = 1;
+    } else {
+      if (strcmp(token, ";") == 0) {
+        wordMode = 0;
+        wordName = 0;
+        printf("%s", dictionary[dictSize].executable.definition);
+        dictSize++;
+        return;
+      }
+      strcat(dictionary[dictSize].executable.definition, " ");
+      strcat(dictionary[dictSize].executable.definition, token);
+    }
+    return;
+  }
+  if (strcmp(token, ".\"") == 0 && stringMode != 1) {
+    stringMode = 1;
+    return;
+  }
+  if (stringMode) {
+    if (strcmp(token, "\"") == 0) {
+      stringMode = 0;
+      return;
+    }
+    printf("%s ", token);
+    return;
+  }
   for (int i = 0; i < dictSize; i++) {
     if (strcmp(token, dictionary[i].name) == 0) {
-      dictionary[i].executable.function(stack);
-      return;
+      if (dictionary[i].type == 0) {
+        dictionary[i].executable.function(stack);
+        return;
+      } else {
+        wordToken = strtok(dictionary[i].executable.definition, " \t\n");
+        while (wordToken != NULL) {
+          execWord(wordToken);
+          wordToken = strtok(NULL, " \t\n");
+        }
+      }
     }
   }
   if (isNumber(token)) {
     push(stack, atoi(token));
+    return;
   }
+  printf("?");
 }
 
 int isWord(char *token) {}
@@ -130,6 +180,8 @@ void drop(STACK *l) { pop(stack); };
 void cr(STACK *l) { printf("\n"); }
 
 void emit(STACK *l) { printf("%d", pop(stack)); }
+
+void quit(STACK *l) { exit(0); }
 
 void over(STACK *l) {
   int over1 = pop(stack);
