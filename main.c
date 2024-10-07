@@ -18,6 +18,7 @@ typedef struct stack {
 typedef struct {
   char name[MAX_WORD_LENGTH];
   int type;
+  int compileWord;
   union {
     void (*function)(STACK *);
     char definition[100];
@@ -30,10 +31,10 @@ int dictSize = 0;
 int wordMode = 0;
 int stringMode = 0;
 int wordName = 0;
+int compileMode = 0;
 
 char *wordToken;
 
-int isWord(char *token);
 int isNumber(char *token);
 
 // Stack functions
@@ -56,10 +57,18 @@ void rot(STACK *l);
 void cr(STACK *l);
 void emit(STACK *l);
 void quit(STACK *l);
+void mod(STACK *l);
+void forth_equal(STACK *l);
+void forth_lesser_than(STACK *l);
+void forth_greater_than(STACK *l);
+void forth_lesser_than(STACK *l);
+void forth_greater_than_or_equal_to(STACK *l);
+void forth_lesser_than_or_equal_to(STACK *l);
+void forth_not_equal(STACK *l);
 
 void printString(char *str);
 void execWord(char *token);
-void addPredefinedWord(char *name, void (*function)(STACK *));
+void addPredefinedWord(char *name, void (*function)(STACK *), int compiled);
 void initDictionary();
 
 int main() {
@@ -83,11 +92,12 @@ int main() {
   }
 }
 
-void addPredefinedWord(char *name, void (*function)(STACK *)) {
+void addPredefinedWord(char *name, void (*function)(STACK *), int compiled) {
   if (dictSize < DICTIONARY_SIZE) {
     strcpy(dictionary[dictSize].name, name);
     dictionary[dictSize].executable.function = function;
     dictionary[dictSize].type = 0;
+    dictionary[dictSize].compileWord = compiled;
     dictSize++;
   } else {
     printf("Dictionary Full");
@@ -95,16 +105,22 @@ void addPredefinedWord(char *name, void (*function)(STACK *)) {
 }
 
 void initDictionary() {
-  addPredefinedWord("+", add);
-  addPredefinedWord("-", subtract);
-  addPredefinedWord(".", dot);
-  addPredefinedWord("dup", dup);
-  addPredefinedWord("drop", drop);
-  addPredefinedWord("over", over);
-  addPredefinedWord("rot", rot);
-  addPredefinedWord("cr", cr);
-  addPredefinedWord("emit", emit);
-  addPredefinedWord("quit", quit);
+  addPredefinedWord("+", add, 0);
+  addPredefinedWord("-", subtract, 0);
+  addPredefinedWord(".", dot, 0);
+  addPredefinedWord("dup", dup, 0);
+  addPredefinedWord("drop", drop, 0);
+  addPredefinedWord("over", over, 0);
+  addPredefinedWord("rot", rot, 0);
+  addPredefinedWord("cr", cr, 0);
+  addPredefinedWord("emit", emit, 0);
+  addPredefinedWord("quit", quit, 0);
+  addPredefinedWord("mod", mod, 0);
+  addPredefinedWord("=", forth_equal, 0);
+  addPredefinedWord(">", forth_greater_than, 0);
+  addPredefinedWord("<", forth_lesser_than, 0);
+  addPredefinedWord(">=", forth_greater_than_or_equal_to, 0);
+  addPredefinedWord("<=", forth_lesser_than_or_equal_to, 0);
 }
 
 void execWord(char *token) {
@@ -121,7 +137,6 @@ void execWord(char *token) {
       if (strcmp(token, ";") == 0) {
         wordMode = 0;
         wordName = 0;
-        printf("%s", dictionary[dictSize].executable.definition);
         dictSize++;
         return;
       }
@@ -145,14 +160,19 @@ void execWord(char *token) {
   for (int i = 0; i < dictSize; i++) {
     if (strcmp(token, dictionary[i].name) == 0) {
       if (dictionary[i].type == 0) {
+        if (dictionary[i].compileWord == 1 & compileMode == 0) {
+          return;
+        }
         dictionary[i].executable.function(stack);
         return;
       } else {
         wordToken = strtok(dictionary[i].executable.definition, " \t\n");
         while (wordToken != NULL) {
+          compileMode = 1;
           execWord(wordToken);
           wordToken = strtok(NULL, " \t\n");
         }
+        compileMode = 0;
       }
     }
   }
@@ -163,9 +183,7 @@ void execWord(char *token) {
   printf("?");
 }
 
-int isWord(char *token) {}
-
-void printString(char *str) {}
+// Forth Predefined Words
 
 void add(STACK *l) { push(stack, (pop(stack) + pop(stack))); }
 
@@ -179,9 +197,14 @@ void drop(STACK *l) { pop(stack); };
 
 void cr(STACK *l) { printf("\n"); }
 
-void emit(STACK *l) { printf("%d", pop(stack)); }
+void emit(STACK *l) { printf("%c", pop(stack)); }
 
 void quit(STACK *l) { exit(0); }
+
+void mod(STACK *l) {
+  int divisor = pop(stack);
+  push(stack, pop(stack) % divisor);
+}
 
 void over(STACK *l) {
   int over1 = pop(stack);
@@ -199,6 +222,50 @@ void rot(STACK *l) {
   push(stack, rot1);
   push(stack, topElement);
 };
+
+void forth_equal(STACK *l) {
+  if (pop(stack) == pop(stack))
+    push(stack, 1);
+  else
+    push(stack, 0);
+}
+
+void forth_not_equal(STACK *l) {
+  if (pop(stack) != pop(stack))
+    push(stack, 1);
+  else
+    push(stack, 0);
+}
+
+void forth_lesser_than(STACK *l) {
+  if (pop(stack) > pop(stack))
+    push(stack, 1);
+  else
+    push(stack, 0);
+}
+
+void forth_greater_than(STACK *l) {
+  if (pop(stack) < pop(stack))
+    push(stack, 1);
+  else
+    push(stack, 0);
+}
+
+void forth_greater_than_or_equal_to(STACK *l) {
+  if (pop(stack) <= pop(stack))
+    push(stack, 1);
+  else
+    push(stack, 0);
+}
+
+void forth_lesser_than_or_equal_to(STACK *l) {
+  if (pop(stack) >= pop(stack))
+    push(stack, 1);
+  else
+    push(stack, 0);
+}
+
+// Stack Operations and misc
 
 int isNumber(char *token) {
   for (int i = 0; i < strlen(token); i++) {
