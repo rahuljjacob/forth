@@ -27,6 +27,7 @@ typedef struct {
 
 STACK *stack;
 Word dictionary[DICTIONARY_SIZE];
+Word compiledWordDictionary[DICTIONARY_SIZE];
 int dictSize = 0;
 int wordMode = 0;
 int stringMode = 0;
@@ -68,6 +69,7 @@ void forth_not_equal(STACK *l);
 
 void printString(char *str);
 void execWord(char *token);
+void execDefinedWords(char *word_defintion);
 void addPredefinedWord(char *name, void (*function)(STACK *), int compiled);
 void initDictionary();
 
@@ -124,6 +126,8 @@ void initDictionary() {
 }
 
 void execWord(char *token) {
+  // if (token == NULL | strcmp(token, " ") == 0)
+  //   return;
   if (strcmp(token, ":") == 0) {
     wordMode = 1;
     return;
@@ -135,6 +139,7 @@ void execWord(char *token) {
       wordName = 1;
     } else {
       if (strcmp(token, ";") == 0) {
+        // printf("%s", dictionary[dictSize].executable.definition);
         wordMode = 0;
         wordName = 0;
         dictSize++;
@@ -160,19 +165,17 @@ void execWord(char *token) {
   for (int i = 0; i < dictSize; i++) {
     if (strcmp(token, dictionary[i].name) == 0) {
       if (dictionary[i].type == 0) {
-        if (dictionary[i].compileWord == 1 & compileMode == 0) {
-          return;
-        }
         dictionary[i].executable.function(stack);
         return;
       } else {
-        wordToken = strtok(dictionary[i].executable.definition, " \t\n");
-        while (wordToken != NULL) {
-          compileMode = 1;
-          execWord(wordToken);
-          wordToken = strtok(NULL, " \t\n");
-        }
+        // while (wordToken != NULL) {
+        //   compileMode = 1;
+        //   execWord(wordToken);
+        //   wordToken = strtok(NULL, " \t\n");
+        // }
+        execDefinedWords(dictionary[i].executable.definition);
         compileMode = 0;
+        return;
       }
     }
   }
@@ -181,6 +184,52 @@ void execWord(char *token) {
     return;
   }
   printf("?");
+}
+
+void execDefinedWords(char *function_defintion) {
+  int wordStringMode = 0;
+  char *token = strtok(function_defintion, " \t\n");
+  while (token != NULL) {
+    if (strcmp(token, ".\"") == 0 && wordStringMode != 1) {
+      wordStringMode = 1;
+      token = strtok(NULL, " \t\n");
+      continue;
+    }
+    if (wordStringMode) {
+      if (strcmp(token, "\"") == 0) {
+        wordStringMode = 0;
+        token = strtok(NULL, " \t\n");
+        continue;
+      }
+      printf("%s ", token);
+      continue;
+    }
+    for (int i = 0; i < dictSize; i++) {
+      if (strcmp(token, dictionary[i].name) == 0) {
+        if (dictionary[i].type == 0) {
+          if (dictionary[i].compileWord == 1 & compileMode == 0) {
+            token = strtok(NULL, " \t\n");
+            continue;
+          }
+          dictionary[i].executable.function(stack);
+          token = strtok(NULL, " \t\n");
+          continue;
+        } else {
+          execDefinedWords(dictionary[i].executable.definition);
+          compileMode = 0;
+        }
+      }
+    }
+
+    // Implement if else Ladder logic here ----
+
+    if (isNumber(token)) {
+      push(stack, atoi(token));
+      token = strtok(NULL, " \t\n");
+      continue;
+    }
+    token = strtok(NULL, " \t\n");
+  }
 }
 
 // Forth Predefined Words
