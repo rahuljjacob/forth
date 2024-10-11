@@ -5,6 +5,7 @@
 
 #define MAX_WORD_LENGTH 100
 #define DICTIONARY_SIZE 100
+#define MAX_WORD_TOKENS 100
 
 typedef struct node {
   float data;
@@ -21,31 +22,21 @@ typedef struct {
   int compileWord;
   union {
     void (*function)(STACK *);
-    char definition[100];
+    char definition[15][MAX_WORD_TOKENS];
   } executable;
 } Word;
 
 STACK *stack;
+STACK *ControlStack;
+STACK *loopUpperBound;
+STACK *loopLowerBound;
+STACK *loopJumpIndex;
 Word dictionary[DICTIONARY_SIZE];
-Word compiledWordDictionary[DICTIONARY_SIZE];
 int dictSize = 0;
 int wordMode = 0;
 int stringMode = 0;
 int wordName = 0;
-int compileMode = 0;
-
-char *wordToken;
-
-int isNumber(char *token);
-
-// Stack functions
-NODE *createnode(int data);
-int isEmpty(STACK *l);
-STACK *init();
-void push(STACK *l, int data);
-int pop(STACK *l);
-int peek(STACK *l);
-void printstack(STACK *l);
+int wordIndexDuringDefinition = 0;
 
 // forth words
 void add(STACK *l);
@@ -67,17 +58,32 @@ void forth_greater_than_or_equal_to(STACK *l);
 void forth_lesser_than_or_equal_to(STACK *l);
 void forth_not_equal(STACK *l);
 
-void printString(char *str);
-void execWord(char *token);
-void execDefinedWords(char *word_defintion);
+// Main Functions
 void addPredefinedWord(char *name, void (*function)(STACK *), int compiled);
 void initDictionary();
+void execWord(char *token);
+void execDefinedWords(char function_defintion[100][100]);
+int isNumber(char *token);
+
+// Stack functions
+NODE *createnode(int data);
+int isEmpty(STACK *l);
+STACK *init();
+void push(STACK *l, int data);
+int pop(STACK *l);
+int peek(STACK *l);
+void printstack(STACK *l);
+int stackDepth(STACK *l);
 
 int main() {
   char input[256];
   char *token;
 
   stack = init();
+  ControlStack = init();
+  loopUpperBound = init();
+  loopLowerBound = init();
+  loopJumpIndex = init();
   initDictionary();
 
   while (1) {
@@ -136,17 +142,21 @@ void execWord(char *token) {
     if (wordName == 0) {
       strcpy(dictionary[dictSize].name, token);
       dictionary[dictSize].type = 1;
+      memset(dictionary[dictSize].executable.definition, '\0', 100);
       wordName = 1;
     } else {
       if (strcmp(token, ";") == 0) {
         // printf("%s", dictionary[dictSize].executable.definition);
         wordMode = 0;
+        wordIndexDuringDefinition = 0;
         wordName = 0;
         dictSize++;
         return;
       }
-      strcat(dictionary[dictSize].executable.definition, " ");
-      strcat(dictionary[dictSize].executable.definition, token);
+      strcpy(
+          dictionary[dictSize].executable.definition[wordIndexDuringDefinition],
+          token);
+      wordIndexDuringDefinition++;
     }
     return;
   }
@@ -168,13 +178,7 @@ void execWord(char *token) {
         dictionary[i].executable.function(stack);
         return;
       } else {
-        // while (wordToken != NULL) {
-        //   compileMode = 1;
-        //   execWord(wordToken);
-        //   wordToken = strtok(NULL, " \t\n");
-        // }
         execDefinedWords(dictionary[i].executable.definition);
-        compileMode = 0;
         return;
       }
     }
@@ -186,54 +190,118 @@ void execWord(char *token) {
   printf("?");
 }
 
-void execDefinedWords(char *function_defintion) {
-  int wordStringMode = 0;
-  char *token = strtok(function_defintion, " \t\n");
-  while (token != NULL) {
-    if (strcmp(token, ".\"") == 0 && wordStringMode != 1) {
-      wordStringMode = 1;
-      token = strtok(NULL, " \t\n");
-      continue;
-    }
-    if (wordStringMode) {
+void execDefinedWords(char function_defintion[100][100]) {
+  int index = 0;
+  char *token = function_defintion[index];
+  int breakContinueFlag = 0;
+  int passFlag = 0;
+  int curLoop;
+  while (strcmp(token, "\0") != 0) {
+    token = function_defintion[index];
+    index++;
+    if (stringMode) {
       if (strcmp(token, "\"") == 0) {
-        wordStringMode = 0;
-        token = strtok(NULL, " \t\n");
+        stringMode = 0;
         continue;
       }
       printf("%s ", token);
       continue;
     }
-    for (int i = 0; i < dictSize; i++) {
-      if (strcmp(token, dictionary[i].name) == 0) {
-        if (dictionary[i].type == 0) {
-          if (dictionary[i].compileWord == 1 & compileMode == 0) {
-            token = strtok(NULL, " \t\n");
-            continue;
-          }
-          dictionary[i].executable.function(stack);
-          token = strtok(NULL, " \t\n");
-          continue;
-        } else {
-          execDefinedWords(dictionary[i].executable.definition);
-          compileMode = 0;
-        }
+    if (strcmp(token, "\0") == 0)
+      return;
+    if (strcmp(token, "do") == 0) {
+      // implement loop stack
+      int lowerBound = pop(stack);
+      int upperBound = pop(stack);
+      if (upperBound < lowerBound) {
+        printf("Upper bound of loop must be greater");
+        exit(0);
       }
-    }
-
-    // Implement if else Ladder logic here ----
-
-    if (isNumber(token)) {
-      push(stack, atoi(token));
-      token = strtok(NULL, " \t\n");
+      push(loopLowerBound, lowerBound);
+      push(loopUpperBound, upperBound);
+      push(loopJumpIndex, index);
       continue;
     }
-    token = strtok(NULL, " \t\n");
+    if (strcmp(token, "loop") == 0) {
+      int loopCheck = pop(loopLowerBound);
+      if (loopCheck + 1 == peek(loopUpperBound)) {
+        pop(loopUpperBound);
+        pop(loopJumpIndex);
+      } else {
+        push(loopLowerBound, loopCheck + 1);
+        index = peek(loopJumpIndex);
+      }
+      continue;
+    }
+    if (strcmp(token, "if") == 0) {
+      if (passFlag == 1) {
+        push(ControlStack, -1);
+      } else {
+        if (pop(stack) != 0) {
+          passFlag = 0;
+          push(ControlStack, 1);
+        } else {
+          passFlag = 1;
+          push(ControlStack, 0);
+        }
+      }
+      continue;
+    }
+    if (strcmp(token, "else") == 0) {
+      if (peek(ControlStack) == -1) {
+      } else {
+        if (peek(ControlStack) == 1) {
+          passFlag = 1;
+        } else {
+          passFlag = 0;
+        }
+      }
+      continue;
+    }
+    if (strcmp(token, "then") == 0) {
+      pop(ControlStack);
+      passFlag = 0;
+      continue;
+    }
+    if (passFlag == 0) {
+      if (strcmp(token, ".\"") == 0 && stringMode != 1) {
+        stringMode = 1;
+        continue;
+      }
+      if (stringMode) {
+        if (strcmp(token, "\"") == 0) {
+          stringMode = 0;
+          continue;
+        }
+        printf("%s ", token);
+        continue;
+      }
+      for (int i = 0; i < dictSize; i++) {
+        if (strcmp(token, dictionary[i].name) == 0) {
+          if (dictionary[i].type == 0) {
+            dictionary[i].executable.function(stack);
+            breakContinueFlag = 1;
+          } else {
+            execDefinedWords(dictionary[i].executable.definition);
+            breakContinueFlag = 1;
+          }
+        }
+      }
+      if (isNumber(token)) {
+        push(stack, atoi(token));
+        continue;
+      }
+
+      if (breakContinueFlag == 1) {
+        breakContinueFlag = 0;
+        continue;
+      }
+      printf("? %s \n", token);
+    }
   }
 }
 
 // Forth Predefined Words
-
 void add(STACK *l) { push(stack, (pop(stack) + pop(stack))); }
 
 void subtract(STACK *l) { push(stack, (pop(stack) - pop(stack))); }
@@ -378,4 +446,14 @@ int peek(STACK *l) {
     return 0;
   }
   return l->top->data;
+}
+
+int stackDepth(STACK *l) {
+  int depth = 0;
+  NODE *head = l->top;
+  while (head != NULL) {
+    depth++;
+    head = head->next;
+  }
+  return depth;
 }
