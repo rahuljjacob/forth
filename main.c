@@ -6,6 +6,7 @@
 #define MAX_WORD_LENGTH 100
 #define DICTIONARY_SIZE 100
 #define MAX_WORD_TOKENS 100
+#define MAX_VAR_CONSTANTS 100
 
 typedef struct node {
   float data;
@@ -15,6 +16,17 @@ typedef struct node {
 typedef struct stack {
   NODE *top;
 } STACK;
+
+typedef struct variable {
+  char name[10];
+  int location;
+  int value;
+} Variable;
+
+typedef struct constant {
+  char name[10];
+  int value;
+} Constant;
 
 typedef struct {
   char name[MAX_WORD_LENGTH];
@@ -32,13 +44,19 @@ STACK *loopUpperBound;
 STACK *loopLowerBound;
 STACK *loopJumpIndex;
 Word dictionary[DICTIONARY_SIZE];
+Variable variables[MAX_VAR_CONSTANTS];
+Constant constants[MAX_VAR_CONSTANTS];
 int dictSize = 0;
+int variableDictSize = 0;
+int constDictSize = 0;
+int variableMode = 0;
+int constMode = 0;
 int wordMode = 0;
 int stringMode = 0;
 int wordName = 0;
 int wordIndexDuringDefinition = 0;
 
-// forth words
+// Forth words
 void add(STACK *l);
 void subtract(STACK *l);
 void dot(STACK *l);
@@ -50,6 +68,8 @@ void cr(STACK *l);
 void emit(STACK *l);
 void quit(STACK *l);
 void mod(STACK *l);
+void bang(STACK *l);
+void ampersand(STACK *l);
 void forth_equal(STACK *l);
 void forth_lesser_than(STACK *l);
 void forth_greater_than(STACK *l);
@@ -129,6 +149,8 @@ void initDictionary() {
   addPredefinedWord("<", forth_lesser_than, 0);
   addPredefinedWord(">=", forth_greater_than_or_equal_to, 0);
   addPredefinedWord("<=", forth_lesser_than_or_equal_to, 0);
+  addPredefinedWord("!", bang, 0);
+  addPredefinedWord("@", ampersand, 0);
 }
 
 void execWord(char *token) {
@@ -172,6 +194,28 @@ void execWord(char *token) {
     printf("%s ", token);
     return;
   }
+  if (strcmp(token, "variable") == 0) {
+    variableMode = 1;
+    return;
+  }
+  if (variableMode == 1) {
+    strcpy(variables[variableDictSize].name, token);
+    variables[variableDictSize].location = variableDictSize;
+    variableMode = 0;
+    variableDictSize++;
+    return;
+  }
+  if (strcmp(token, "constant") == 0) {
+    constMode = 1;
+    return;
+  }
+  if (constMode == 1) {
+    strcpy(constants[constDictSize].name, token);
+    constants[constDictSize].value = pop(stack);
+    constDictSize++;
+    constMode = 0;
+    return;
+  }
   for (int i = 0; i < dictSize; i++) {
     if (strcmp(token, dictionary[i].name) == 0) {
       if (dictionary[i].type == 0) {
@@ -181,6 +225,18 @@ void execWord(char *token) {
         execDefinedWords(dictionary[i].executable.definition);
         return;
       }
+    }
+  }
+  for (int i = 0; i < variableDictSize; i++) {
+    if (strcmp(token, variables[i].name) == 0) {
+      push(stack, variables[i].location);
+      return;
+    }
+  }
+  for (int i = 0; i < constDictSize; i++) {
+    if (strcmp(token, constants[i].name) == 0) {
+      push(stack, constants[i].value);
+      return;
     }
   }
   if (isNumber(token)) {
@@ -339,6 +395,18 @@ void rot(STACK *l) {
   push(stack, rot1);
   push(stack, topElement);
 };
+
+void bang(STACK *l) {
+  int location = pop(stack);
+  variables[location].value = pop(stack);
+}
+
+void ampersand(STACK *l) {
+  int location = pop(stack);
+  if (location < 0)
+    push(stack, 0);
+  push(stack, variables[location].value);
+}
 
 void forth_equal(STACK *l) {
   if (pop(stack) == pop(stack))
