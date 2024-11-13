@@ -6,7 +6,7 @@
 #define MAX_WORD_LENGTH 100
 #define DICTIONARY_SIZE 100
 #define MAX_WORD_TOKENS 100
-#define MAX_VAR_CONSTANTS 100
+#define MAX_VAR_CONSTANTS 101
 
 typedef struct node {
   float data;
