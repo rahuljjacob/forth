@@ -82,7 +82,7 @@ void forth_not_equal(STACK *l);
 void addPredefinedWord(char *name, void (*function)(STACK *), int compiled);
 void initDictionary();
 void execWord(char *token);
-void execDefinedWords(char function_defintion[100][100]);
+void execDefinedWord(char function_defintion[100][100]);
 int isNumber(char *token);
 
 // Stack functions
@@ -222,7 +222,7 @@ void execWord(char *token) {
                 dictionary[i].executable.function(stack);
                 return;
             } else {
-                execDefinedWords(dictionary[i].executable.definition);
+                execDefinedWord(dictionary[i].executable.definition);
                 return;
             }
         }
@@ -246,7 +246,7 @@ void execWord(char *token) {
     printf("?");
 }
 
-void execDefinedWords(char function_defintion[100][100]) {
+void execDefinedWord(char function_defintion[100][100]) {
     int index = 0;
     char *token = function_defintion[index];
     int breakContinueFlag = 0;
@@ -338,7 +338,7 @@ void execDefinedWords(char function_defintion[100][100]) {
                         dictionary[i].executable.function(stack);
                         breakContinueFlag = 1;
                     } else {
-                        execDefinedWords(dictionary[i].executable.definition);
+                        execDefinedWord(dictionary[i].executable.definition);
                         breakContinueFlag = 1;
                     }
                 }
